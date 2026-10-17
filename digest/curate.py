@@ -32,27 +32,36 @@ DEFAULT_MODELS = [
 
 SYSTEM = (
     "You are the editor of a personal morning newsletter built from opinion columns and "
-    "analysis at major newspapers. Choose pieces that best match the reader's interests, "
-    "favour substantive arguments over routine updates, and keep a mix of publications. "
-    "Takeaways are one or two plain sentences (under 40 words) telling the reader the "
-    "column's argument or why the story matters — no hype, no repeating the headline. "
-    "The word of the day should be a genuinely useful, somewhat advanced English word that "
-    "fits one of today's chosen stories; prefer words the reader is unlikely to use daily. "
-    "Reply with a single JSON object and nothing else."
+    "analysis at free-to-read newspapers. Choose pieces that best match the reader's interests "
+    "and what their feedback says they enjoy, favour substantive arguments over routine "
+    "updates, and keep a mix of publications. Takeaways are one or two plain sentences "
+    "(under 40 words) telling the reader the column's argument or why the story matters: no "
+    "hype, no repeating the headline. The 5-minute briefing is five crisp sentences, one per "
+    "story, that together tell the reader what matters today. For developing stories, say in "
+    "one sentence what is new compared with the earlier instalments. For words, pick "
+    "somewhat advanced English words that actually appear in today's candidate titles or "
+    "summaries; the word of the day should be the one that best captures the day's dominant "
+    "theme. Never pick a word the reader has already had. Reply with a single JSON object "
+    "and nothing else."
 )
+
+WORD_SHAPE = {
+    "word": "...",
+    "pronunciation": "simple respelling, e.g. hi-JEM-uh-nee",
+    "part_of_speech": "...",
+    "definition": "...",
+    "example": "an example sentence tied to today's news",
+    "origin": "...",
+    "related_story_id": "<candidate id where the word appears>",
+}
 
 RESPONSE_SHAPE = {
     "intro": "One warm sentence previewing today's themes.",
+    "briefing": [{"story_id": "<candidate or developing id>", "text": "<one sentence>"}],
+    "developing": [{"story_id": "<developing id>", "update": "<what is new, one sentence>"}],
     "sections": [{"key": "<section key>", "stories": [{"id": "<candidate id>", "takeaway": "<1-2 sentences>"}]}],
-    "word": {
-        "word": "...",
-        "pronunciation": "simple respelling, e.g. hi-JEM-uh-nee",
-        "part_of_speech": "...",
-        "definition": "...",
-        "example": "an example sentence tied to today's news",
-        "origin": "...",
-        "related_story_id": "<candidate id the word relates to>",
-    },
+    "word": {**WORD_SHAPE, "theme": "<one line: why this word captures today's news>"},
+    "word_bank": [WORD_SHAPE],
 }
 
 
@@ -65,27 +74,35 @@ def models() -> list[str]:
     return [m.strip() for m in override.split(",") if m.strip()] or DEFAULT_MODELS
 
 
-def _build_prompt(candidates: dict[str, list[Story]], sections_cfg: dict, profile: str, per_section: int) -> str:
-    payload = {
-        key: [
-            {
-                "id": s.id,
-                "source": s.source,
-                "opinion": s.opinion,
-                "title": s.title,
-                "summary": s.summary,
-            }
-            for s in stories
-        ]
-        for key, stories in candidates.items()
-    }
+def _story_json(s: Story) -> dict:
+    return {"id": s.id, "source": s.source, "opinion": s.opinion, "title": s.title, "summary": s.summary}
+
+
+def _build_prompt(
+    candidates: dict[str, list[Story]],
+    developing: list[Story],
+    sections_cfg: dict,
+    profile: str,
+    per_section: int,
+    used_words: list[str],
+    tuning: list[str],
+) -> str:
+    payload = {key: [_story_json(s) for s in stories] for key, stories in candidates.items()}
+    threads_json = [
+        {**_story_json(s), "earlier": [f"{t['date']}: {t['title']}" for t in s.thread]} for s in developing
+    ]
     labels = {k: v["label"] for k, v in sections_cfg.items()}
     return (
         f"Reader profile:\n{profile.strip()}\n\n"
+        f"Learned from the reader's feedback: {'; '.join(tuning) or 'nothing yet'}\n\n"
+        f"Words the reader has already had (do not reuse): {', '.join(used_words[-60:]) or 'none'}\n\n"
         f"Sections (key -> label): {json.dumps(labels)}\n\n"
-        f"Pick up to {per_section} stories per section from the candidates below, ordered best "
-        "first. Use only the given ids and section keys.\n\n"
+        f"Pick up to {per_section} stories per section from the candidates, ordered best first. "
+        "Write an update line for every developing story. The briefing covers the five most "
+        "important stories across developing and chosen stories. Add two more words to word_bank. "
+        "Use only the given ids and section keys.\n\n"
         f"Respond with JSON exactly in this shape:\n{json.dumps(RESPONSE_SHAPE, indent=1)}\n\n"
+        f"Developing stories (continuing earlier coverage):\n{json.dumps(threads_json, ensure_ascii=False, indent=1)}\n\n"
         f"Candidates:\n{json.dumps(payload, ensure_ascii=False, indent=1)}"
     )
 
@@ -148,30 +165,12 @@ def _ask(prompt: str) -> tuple[str, dict] | None:
     return None
 
 
-def curate(candidates: dict[str, list[Story]], sections_cfg: dict, profile: str, per_section: int):
-    """Return (selected_by_section, intro, word) or None if curation fails."""
-    result = _ask(_build_prompt(candidates, sections_cfg, profile, per_section))
-    if not result:
-        return None
-    _, data = result
-
-    by_id = {s.id: s for stories in candidates.values() for s in stories}
-    selected: dict[str, list[Story]] = {key: [] for key in sections_cfg}
-    for section in data["sections"]:
-        if not isinstance(section, dict) or section.get("key") not in selected:
-            continue
-        for item in (section.get("stories") or [])[:per_section]:
-            story = by_id.get(str(item.get("id", ""))) if isinstance(item, dict) else None
-            if story and story not in selected[section["key"]]:
-                story.takeaway = str(item.get("takeaway", "")).strip()
-                selected[section["key"]].append(story)
-
-    w = data["word"]
-    if not all(w.get(k) for k in ("word", "definition")):
+def _word(w: dict, by_id: dict[str, Story]) -> WordOfTheDay | None:
+    if not isinstance(w, dict) or not w.get("word") or not w.get("definition"):
         return None
     related = by_id.get(str(w.get("related_story_id", "")))
-    word = WordOfTheDay(
-        word=str(w["word"]),
+    return WordOfTheDay(
+        word=str(w["word"]).strip(),
         pronunciation=str(w.get("pronunciation", "")),
         part_of_speech=str(w.get("part_of_speech", "")),
         definition=str(w["definition"]),
@@ -179,5 +178,60 @@ def curate(candidates: dict[str, list[Story]], sections_cfg: dict, profile: str,
         origin=str(w.get("origin", "")),
         related_url=related.url if related else "",
         related_title=related.title if related else "",
+        theme=str(w.get("theme", "")),
     )
-    return selected, str(data.get("intro", "")).strip(), word
+
+
+def curate(
+    candidates: dict[str, list[Story]],
+    developing: list[Story],
+    sections_cfg: dict,
+    profile: str,
+    per_section: int,
+    used_words: list[str] = (),
+    tuning: list[str] = (),
+) -> dict | None:
+    """Return {sections, intro, briefing, word, word_bank} or None if curation fails.
+
+    Takeaways and developing-story updates are written onto the Story objects.
+    """
+    prompt = _build_prompt(candidates, developing, sections_cfg, profile, per_section, list(used_words), list(tuning))
+    result = _ask(prompt)
+    if not result:
+        return None
+    _, data = result
+
+    by_id = {s.id: s for stories in candidates.values() for s in stories}
+    by_id.update({s.id: s for s in developing})
+    selected: dict[str, list[Story]] = {key: [] for key in sections_cfg}
+    for section in data["sections"]:
+        if not isinstance(section, dict) or section.get("key") not in selected:
+            continue
+        for item in (section.get("stories") or [])[:per_section]:
+            story = by_id.get(str(item.get("id", ""))) if isinstance(item, dict) else None
+            if story and story not in developing and story not in selected[section["key"]]:
+                story.takeaway = str(item.get("takeaway", "")).strip()
+                selected[section["key"]].append(story)
+
+    for item in data.get("developing") or []:
+        story = by_id.get(str(item.get("story_id", ""))) if isinstance(item, dict) else None
+        if story in developing:
+            story.update = str(item.get("update", "")).strip()
+
+    briefing = []
+    for item in data.get("briefing") or []:
+        story = by_id.get(str(item.get("story_id", ""))) if isinstance(item, dict) else None
+        if story and item.get("text"):
+            briefing.append({"text": str(item["text"]).strip(), "story": story})
+
+    word = _word(data["word"], by_id)
+    if not word or word.word.lower() in {w.lower() for w in used_words}:
+        word = None
+    bank = [w for w in (_word(x, by_id) for x in (data.get("word_bank") or [])[:3]) if w]
+    return {
+        "sections": selected,
+        "intro": str(data.get("intro", "")).strip(),
+        "briefing": briefing[:5],
+        "word": word,
+        "word_bank": [w for w in bank if not word or w.word.lower() != word.word.lower()][:2],
+    }

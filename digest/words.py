@@ -5,9 +5,10 @@ repeats for len(WORDS) days.
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 
-from .models import WordOfTheDay
+from .models import Story, WordOfTheDay
 
 # (word, pronunciation, part of speech, definition, example, origin)
 WORDS = [
@@ -134,6 +135,27 @@ WORDS = [
 ]
 
 
-def word_for(day: date) -> WordOfTheDay:
-    entry = WORDS[day.toordinal() % len(WORDS)]
-    return WordOfTheDay(*entry)
+def word_for(day: date, used: set[str] | None = None) -> WordOfTheDay:
+    """Rotate through the list by date, skipping recently used words."""
+    used = used or set()
+    for offset in range(len(WORDS)):
+        entry = WORDS[(day.toordinal() + offset) % len(WORDS)]
+        if entry[0] not in used:
+            return WordOfTheDay(*entry)
+    return WordOfTheDay(*WORDS[day.toordinal() % len(WORDS)])
+
+
+def from_stories(stories: list[Story], used: set[str] | None = None) -> WordOfTheDay | None:
+    """A list word that actually appears in one of today's stories, if any."""
+    used = used or set()
+    for story in stories:
+        text = f"{story.title} {story.summary}".lower()
+        for entry in WORDS:
+            # Match inflections too: "exacerbated", "bellwethers".
+            stem = entry[0][:-1] if len(entry[0]) > 6 else entry[0]
+            if entry[0] not in used and re.search(rf"\b{re.escape(stem)}", text):
+                word = WordOfTheDay(*entry)
+                word.related_url, word.related_title = story.url, story.title
+                word.theme = f"Spotted in today's {story.source} piece."
+                return word
+    return None

@@ -7,12 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Build only (don't send email)"
+        description: "Build only (don't send email or update memory)"
         type: boolean
         default: false
 
+# Saving reader memory (state.enc) pushes to the digest-state branch.
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
 
 jobs:
   digest:
@@ -25,11 +30,39 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+
+      - name: Restore reader memory
+        run: |
+          if git fetch --depth 1 origin digest-state; then
+            git show FETCH_HEAD:state.enc > state.enc
+          else
+            echo "No saved memory yet; starting fresh."
+          fi
+
       - name: Build and send digest
         env:
-          # Decrypts credentials.enc (SMTP login, recipient, API keys).
+          # Decrypts credentials.enc and state.enc.
           DIGEST_SECRET_KEY: ${{ secrets.DIGEST_SECRET_KEY }}
         run: python -m digest ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Save reader memory
+        if: ${{ !inputs.dry_run }}
+        run: |
+          [ -f state.enc ] || exit 0
+          mv state.enc "$RUNNER_TEMP/state.enc"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth 1 origin digest-state; then
+            git checkout -B digest-state FETCH_HEAD
+          else
+            git checkout --orphan digest-state
+            git rm -rfq .
+          fi
+          cp "$RUNNER_TEMP/state.enc" state.enc
+          git add state.enc
+          git commit -qm "Update digest memory $(date -u +%F)" || exit 0
+          git push origin digest-state
+
       - name: Upload rendered email
         if: always()
         uses: actions/upload-artifact@v4
