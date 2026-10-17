@@ -306,3 +306,55 @@ def test_paywalled_domains_are_dropped():
     sources = {s["name"] for s in cfg["sources"]}
     assert not sources & {"Vox", "BBC News", "CNBC", "HousingWire"}
     assert not any(rank.is_blocked(s["url"], cfg["blocked_domains"]) for s in cfg["sources"])
+
+
+def test_feed_health_streaks_and_flagging(tmp_path, monkeypatch):
+    from datetime import timedelta
+    from digest import health
+    from digest.fetch import FeedResult
+
+    good_src = {"name": "Good", "url": "https://good.example/rss"}
+    dead_src = {"name": "Dead", "url": "https://dead.example/rss"}
+    stale_src = {"name": "Stale", "url": "https://stale.example/rss"}
+    fresh = load_stories()[:2]
+    stale = [s for s in load_stories() if "Old Piece" in s.title]
+    store = {"https://removed.example/rss": {"empty_streak": 9, "last_empty": "", "last_ok": ""}}
+
+    def run(day, rerun=False):
+        when = NOW + timedelta(days=day)
+        # Shift fresh stories forward so they stay inside the lookback window.
+        for s in fresh:
+            s.published = when
+        return health.update(store, [FeedResult(good_src, fresh), FeedResult(dead_src, error="HTTP 404"),
+                                     FeedResult(stale_src, stale)], when, lookback_hours=36)
+
+    statuses, flagged = run(0)
+    assert "https://removed.example/rss" not in store  # dropped from config -> forgotten
+    assert {s.name: (s.fresh, s.empty_streak) for s in statuses} == {"Good": (2, 0), "Dead": (0, 1), "Stale": (0, 1)}
+    assert not flagged
+    run(0, rerun=True)  # re-running the same day doesn't double-count
+    assert store[dead_src["url"]]["empty_streak"] == 1
+    run(1)
+    statuses, flagged = run(2)
+    assert sorted(f.name for f in flagged) == ["Dead", "Stale"]
+    assert store[good_src["url"]]["empty_streak"] == 0
+
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    health.write_summary(statuses, flagged)
+    text = summary.read_text()
+    assert "🚩 | [Dead](https://dead.example/rss)" in text and "failed: HTTP 404" in text
+    assert "none recent" in text
+
+    # Recovery resets the streak.
+    stale_src_fresh = FeedResult(stale_src, fresh)
+    health.update(store, [stale_src_fresh], NOW + timedelta(days=3), lookback_hours=36)
+    assert store[stale_src["url"]]["empty_streak"] == 0
+
+
+def test_flagged_feeds_shown_in_email():
+    digest = app.build_digest(config(), load_stories(), now=NOW, use_llm=False)
+    digest.flagged_feeds = [{"name": "Dead Feed", "url": "https://dead.example/rss", "days": 4}]
+    html = render.render_html(digest, settings_url="https://github.com/x/y/edit/main/config.yaml")
+    assert "Feed check" in html and "Dead Feed" in html and "empty 4 days" in html
+    assert "FEED CHECK" in render.render_text(digest)

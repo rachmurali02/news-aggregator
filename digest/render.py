@@ -71,4 +71,7 @@ def render_text(digest: Digest) -> str:
             lines.append(f"In today's news: {w.related_url}")
         for extra in digest.word_bank:
             lines.append(f"Also: {extra.word} — {extra.definition}")
+    if digest.flagged_feeds:
+        lines += ["", "FEED CHECK: these feeds have been empty for days; consider replacing them:"]
+        lines += [f"- {f['name']} ({f['days']} days): {f['url']}" for f in digest.flagged_feeds]
     return "\n".join(lines) + "\n"

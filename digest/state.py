@@ -30,6 +30,7 @@ def empty() -> dict:
         "feedback_log": [],  # [{date, direction, story_id, title}]
         "processed_feedback": [],  # Message-IDs already applied
         "used_words": [],
+        "feed_health": {},  # url -> {name, empty_streak, last_empty, last_ok, ...}
     }
 
 

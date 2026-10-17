@@ -6,6 +6,7 @@ import logging
 import re
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import feedparser
@@ -60,20 +61,26 @@ def parse_feed(content: bytes, source: dict) -> list[Story]:
     return stories
 
 
-def fetch_source(source: dict) -> list[Story]:
+@dataclass
+class FeedResult:
+    source: dict
+    stories: list[Story] = field(default_factory=list)
+    error: str = ""
+
+
+def fetch_source(source: dict) -> FeedResult:
     req = urllib.request.Request(source["url"], headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
             content = resp.read()
     except Exception as exc:  # one bad feed must not sink the digest
         log.warning("Failed to fetch %s (%s): %s", source["name"], source["url"], exc)
-        return []
+        return FeedResult(source, error=str(exc)[:200])
     stories = parse_feed(content, source)
     log.info("Fetched %d stories from %s", len(stories), source["url"])
-    return stories
+    return FeedResult(source, stories)
 
 
-def fetch_all(sources: list[dict]) -> list[Story]:
+def fetch_all(sources: list[dict]) -> list[FeedResult]:
     with ThreadPoolExecutor(max_workers=8) as pool:
-        results = pool.map(fetch_source, sources)
-    return [story for batch in results for story in batch]
+        return list(pool.map(fetch_source, sources))

@@ -14,6 +14,9 @@ digest:
   developing_stories: 3
   # Score multiplier for stories that continue an earlier thread.
   developing_boost: 1.3
+  # Flag a feed (run log, Actions summary, email footer) once it has had no
+  # recent stories this many days in a row, so you can replace it.
+  flag_empty_feeds_after_days: 3
   # Only consider stories published in the last N hours.
   lookback_hours: 36
   # Opinion pieces get a boost so columns float above straight news.

@@ -63,6 +63,8 @@ class Digest:
     reader_name: str = ""
     # Address that "more/less like this" feedback emails go to.
     feedback_to: str = ""
+    # Feeds empty for several days running: [{"name", "url", "days"}]
+    flagged_feeds: list[dict] = field(default_factory=list)
     curated_by_ai: bool = False
 
     @property
