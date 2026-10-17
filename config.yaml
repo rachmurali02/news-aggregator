@@ -6,8 +6,14 @@ digest:
   title: "The Morning Column"
   # Recipient is read from the DIGEST_TO env var / GitHub secret when set.
   recipient: ""
+  # Shown in the masthead as "<name>'s edition". Leave blank for "Your edition".
+  reader_name: ""
   timezone: "America/New_York"
-  stories_per_section: 4
+  stories_per_section: 2
+  # Up to this many stories that continue coverage from earlier days.
+  developing_stories: 3
+  # Score multiplier for stories that continue an earlier thread.
+  developing_boost: 1.3
   # Only consider stories published in the last N hours.
   lookback_hours: 36
   # Opinion pieces get a boost so columns float above straight news.

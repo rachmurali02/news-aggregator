@@ -143,3 +143,152 @@ def test_credentials_roundtrip(tmp_path, monkeypatch):
     assert credentials.load_into_env(path) == ["SMTP_PASSWORD"]
     assert os.environ["SMTP_PASSWORD"] == "pw"
     assert os.environ["SMTP_USER"] == "override@b.com"
+
+
+def _history(*entries):
+    return [{"id": f"h{i}", "date": d, "title": t, "url": f"https://old.example/{i}", "source": "Old Paper",
+             "section": sec, "thread_id": tid or f"h{i}"} for i, (d, t, sec, tid) in enumerate(entries)]
+
+
+def test_developing_story_is_threaded_and_pulled_out_of_sections():
+    from digest import state
+    memory = state.empty()
+    memory["history"] = _history(
+        ("2026-10-15", "China tariffs strategy faces backlash in Europe", "global_affairs", None),
+        ("2026-10-16", "Europe weighs response to China tariffs strategy", "global_affairs", "h0"),
+        ("2026-10-16", "Unrelated piece on gardening", "science_tech", None),
+    )
+    china_feed = fetch.parse_feed(b"""<rss><channel><item><title>China tariffs strategy: what Europe does next</title>
+        <link>https://example.com/china-next</link><description>Tariffs and trade diplomacy.</description>
+        <pubDate>Sat, 17 Oct 2026 09:00:00 GMT</pubDate></item></channel></rss>""",
+                                  {"name": "The Guardian", "section": "global_affairs", "opinion": True})
+    digest = app.build_digest(config(), load_stories() + china_feed, now=NOW, use_llm=False, memory=memory)
+
+    assert [s.url for s in digest.developing] == ["https://example.com/china-next"]
+    dev = digest.developing[0]
+    assert dev.thread_id == "h0"
+    assert [t["date"] for t in dev.thread] == ["2026-10-15", "2026-10-16"]
+    assert dev not in [s for sec in digest.sections for s in sec["stories"]]
+    html = render.render_html(digest)
+    assert "Developing stories" in html and "Day 3" in html and "Oct 15" in html
+
+
+def test_already_sent_urls_are_skipped():
+    from digest import state
+    memory = state.empty()
+    memory["history"] = [{"id": "x", "date": "2026-10-16", "title": "AI Will Not Save Us From Ourselves",
+                          "url": "https://example.com/ai-save", "source": "S", "section": "science_tech"}]
+    digest = app.build_digest(config(), load_stories(), now=NOW, use_llm=False, memory=memory)
+    assert "https://example.com/ai-save" not in [s.url for s in digest.all_stories]
+
+
+def test_feedback_shifts_preferences_and_ranking():
+    from digest import prefs, state
+    memory = state.empty()
+    memory["history"] = _history(("2026-10-16", "Mortgage rates and housing supply", "real_estate", None))
+    memory["history"][0]["source"] = "Property Desk"
+    used = prefs.apply_feedback(memory, [("<m1>", "more", "h0"), ("<m1>", "more", "h0"), ("<m2>", "less", "nope")], NOW)
+    assert used == 1  # duplicate message and unknown story ignored
+    p = memory["prefs"]
+    assert p["sections"]["real_estate"] > 1 and p["sources"]["Property Desk"] > 1 and p["terms"]["mortgage"] == 1
+    assert "More Real Estate" in prefs.describe(p, config()["sections"])
+
+    stories = load_stories()
+    baseline = {s.url: s.score for s in rank.score_stories(rank.dedupe(load_stories()), config()["sections"], now=NOW)}
+    scored = rank.score_stories(rank.dedupe(stories), config()["sections"], now=NOW)
+    prefs.apply(scored, p)
+    mortgage = next(s for s in scored if "Mortgage" in s.title)
+    assert mortgage.score > baseline[mortgage.url]
+
+
+def test_feedback_links_in_email():
+    digest = app.build_digest(config(), load_stories(), now=NOW, use_llm=False)
+    digest.feedback_to = "me@example.com"
+    html = render.render_html(digest)
+    assert "mailto:me@example.com?subject=%5Bdigest-feedback%5D%20more%20" in html
+    assert "Less like this" in html
+
+
+def test_word_comes_from_todays_articles_and_skips_used():
+    from digest.models import Story
+    s = Story(title="Housing reform is no panacea", url="https://e.com/p", source="Vox", summary="")
+    w = words.from_stories([s])
+    assert w.word == "panacea" and w.related_url == "https://e.com/p"
+    assert words.from_stories([s], used={"panacea"}) is None
+    assert words.word_for(NOW.date(), used={words.word_for(NOW.date()).word}).word != words.word_for(NOW.date()).word
+
+
+def test_briefing_fallback_has_five_or_fewer_items():
+    digest = app.build_digest(config(), load_stories(), now=NOW, use_llm=False)
+    assert 1 <= len(digest.briefing) <= 5
+    assert "5-minute briefing" in render.render_html(digest)
+
+
+def test_state_roundtrip_encrypted(tmp_path, monkeypatch):
+    from cryptography.fernet import Fernet
+    from digest import state
+    monkeypatch.setenv("DIGEST_SECRET_KEY", Fernet.generate_key().decode())
+    path = tmp_path / "state.enc"
+    memory = state.empty()
+    memory["history"] = _history(("2026-10-16", "Recent", "x", None), ("2026-01-01", "Ancient", "x", None))
+    memory["used_words"] = ["panacea"]
+    assert state.save(memory, NOW, path)
+    assert b"Recent" not in path.read_bytes()
+    loaded = state.load(path)
+    assert [h["title"] for h in loaded["history"]] == ["Recent"]  # old entries pruned
+    assert loaded["used_words"] == ["panacea"]
+
+
+def test_llm_briefing_developing_and_word_bank(monkeypatch):
+    import json
+    from digest import curate, state
+    memory = state.empty()
+    memory["history"] = _history(("2026-10-16", "West's China strategy questioned", "global_affairs", None))
+    stories = load_stories()
+    china = next(s for s in stories if "China" in s.title)
+    ai = next(s for s in stories if s.title.startswith("AI"))
+    payload = {
+        "intro": "Hi.",
+        "briefing": [{"story_id": china.id, "text": "China line."}, {"story_id": ai.id, "text": "AI line."},
+                     {"story_id": "bogus", "text": "dropped"}, {"story_id": ai.id, "text": "Third."}],
+        "developing": [{"story_id": china.id, "update": "Europe now joins in."}],
+        "sections": [{"key": "science_tech", "stories": [{"id": ai.id, "takeaway": "Hype."}]}],
+        "word": {"word": "hype", "definition": "Exaggerated publicity.", "theme": "AI week",
+                 "related_story_id": ai.id},
+        "word_bank": [{"word": "zoning", "definition": "Land-use rules."}, {"word": "hype", "definition": "dup"}],
+    }
+    monkeypatch.setattr(curate, "_complete", lambda m, p: json.dumps(payload))
+    digest = app.build_digest(config(), stories, now=NOW, use_llm=True, memory=memory)
+
+    assert digest.developing == [china] and china.update == "Europe now joins in."
+    assert [b["text"] for b in digest.briefing] == ["China line.", "AI line.", "Third."]
+    assert digest.word.word == "hype" and digest.word.theme == "AI week"
+    assert [w.word for w in digest.word_bank] == ["zoning"]
+
+
+def test_feedback_emails_read_and_archived(monkeypatch):
+    from digest import prefs
+
+    mails = {
+        b"1": b"Subject: [digest-feedback] more abcd1234\r\nFrom: Me <me@example.com>\r\nMessage-ID: <a@x>\r\n\r\n",
+        b"2": b"Subject: [digest-feedback] less abcd1234\r\nFrom: stranger@evil.com\r\nMessage-ID: <b@x>\r\n\r\n",
+    }
+    deleted = []
+
+    class FakeIMAP:
+        def __init__(self, host, timeout=None): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def login(self, u, p): pass
+        def select(self, box): pass
+        def search(self, charset, query): return "OK", [b"1 2"]
+        def fetch(self, num, what): return "OK", [(b"hdr", mails[num])]
+        def store(self, num, op, flag): deleted.append(num)
+        def expunge(self): pass
+
+    monkeypatch.setenv("SMTP_USER", "me@example.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "pw")
+    monkeypatch.setattr(prefs.imaplib, "IMAP4_SSL", FakeIMAP)
+    events = prefs.fetch_feedback_emails({"me@example.com"})
+    assert events == [("<a@x>", "more", "abcd1234")]  # stranger ignored
+    assert deleted == [b"1", b"2"]
