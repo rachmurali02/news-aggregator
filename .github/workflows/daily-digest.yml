@@ -29,8 +29,6 @@ jobs:
         env:
           # Decrypts credentials.enc (SMTP login, recipient, API keys).
           DIGEST_SECRET_KEY: ${{ secrets.DIGEST_SECRET_KEY }}
-          # Optional: a plain secret overrides the encrypted value of the same name.
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: python -m digest ${{ inputs.dry_run && '--dry-run' || '' }}
       - name: Upload rendered email
         if: always()

@@ -50,8 +50,8 @@ overrides the encrypted one.
 
 1. Add the repository secret **`DIGEST_SECRET_KEY`** under *Settings → Secrets and variables
    → Actions*.
-2. *(Optional)* Get a free key at <https://openrouter.ai/keys> and add it as the secret
-   `OPENROUTER_API_KEY`, or store it in `credentials.enc` as shown above.
+2. The OpenRouter key is already in `credentials.enc`. To replace it, run
+   `python -m digest.credentials set OPENROUTER_API_KEY=...` and commit the file.
 3. Test it: go to *Actions → Daily digest → Run workflow*. Tick *dry run* to only build the
    email, which you can download from the run's artifacts. Leave it unticked to send it.
 4. After that it runs every day at **11:07 UTC** (about 7am New York time). To change the
