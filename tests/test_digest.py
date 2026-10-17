@@ -47,9 +47,9 @@ def test_dedupe_by_title():
     assert sum(1 for s in deduped if s.title.startswith("Build More Homes")) == 1
 
 
-def test_build_and_render_without_claude():
+def test_build_and_render_without_llm():
     cfg = config()
-    digest = app.build_digest(cfg, load_stories(), now=NOW, use_claude=False)
+    digest = app.build_digest(cfg, load_stories(), now=NOW, use_llm=False)
     assert digest.story_count == 4
     assert digest.word == words.word_for(NOW.date())
 
@@ -70,10 +70,17 @@ def test_word_rotation_covers_list():
     assert len(seen) == len(words.WORDS)
 
 
-def test_claude_curation_with_fake_client(monkeypatch):
+def test_extract_json_handles_reasoning_and_fences():
+    from digest import curate
+    reply = '<think>let me {think}</think>\n```json\n{"intro": "hi", "sections": [], "word": {"word": "x"}}\n```'
+    assert curate.extract_json(reply)["intro"] == "hi"
+    assert curate.extract_json("no json here") is None
+    assert curate.extract_json('{"intro": "missing sections"}') is None
+
+
+def test_llm_curation_falls_through_models(monkeypatch):
     import json
-    import anthropic
-    from types import SimpleNamespace
+    from digest import curate
 
     stories = load_stories()
     china = next(s for s in stories if "China" in s.title)
@@ -90,34 +97,49 @@ def test_claude_curation_with_fake_client(monkeypatch):
                  "definition": "Unwilling to change.", "example": "Beijing stayed intransigent.",
                  "origin": "Spanish.", "related_story_id": china.id},
     }
-    captured = {}
+    tried = []
 
-    class FakeStream:
-        def __enter__(self):
-            return self
-        def __exit__(self, *a):
-            return False
-        def get_final_message(self):
-            return SimpleNamespace(stop_reason="end_turn",
-                                   content=[SimpleNamespace(type="text", text=json.dumps(payload))])
+    def fake_complete(model, prompt):
+        tried.append(model)
+        if len(tried) == 1:
+            raise RuntimeError("model unavailable")
+        return "<think>pondering</think>" + json.dumps(payload)
 
-    class FakeClient:
-        def __init__(self, *a, **k):
-            self.beta = SimpleNamespace(messages=SimpleNamespace(stream=self.stream))
-        def stream(self, **kwargs):
-            captured.update(kwargs)
-            return FakeStream()
+    monkeypatch.setenv("DIGEST_MODELS", "first:free,second:free")
+    monkeypatch.setattr(curate, "_complete", fake_complete)
+    digest = app.build_digest(config(), stories, now=NOW, use_llm=True)
 
-    monkeypatch.setattr(anthropic, "Anthropic", FakeClient)
-    digest = app.build_digest(config(), stories, now=NOW, use_claude=True)
-
-    assert captured["model"] == "claude-opus-5-5"
-    assert captured["output_config"]["format"]["type"] == "json_schema"
-    assert digest.curated_by_claude
+    assert tried == ["first:free", "second:free"]
+    assert digest.curated_by_ai
     assert digest.intro == "Trade wars and housing math."
     by_key = {s["key"]: s["stories"] for s in digest.sections}
     assert [s.takeaway for s in by_key["global_affairs"]] == ["Tariffs aren't working."]
     assert len(by_key["real_estate"]) == 1
-    assert by_key["science_tech"]  # Claude left it empty -> keyword picks kept
+    assert by_key["science_tech"]  # model left it empty -> keyword picks kept
     assert digest.word.related_url == china.url
     assert "See it in today" in render.render_html(digest)
+
+
+def test_llm_total_failure_falls_back_to_keywords(monkeypatch):
+    from digest import curate
+    monkeypatch.setattr(curate, "_complete", lambda m, p: "sorry")
+    digest = app.build_digest(config(), load_stories(), now=NOW, use_llm=True)
+    assert not digest.curated_by_ai and digest.story_count == 4
+
+
+def test_credentials_roundtrip(tmp_path, monkeypatch):
+    import os
+    from cryptography.fernet import Fernet
+    from digest import credentials
+
+    key = Fernet.generate_key().decode()
+    path = tmp_path / "creds.enc"
+    credentials.write({"SMTP_USER": "a@b.com", "SMTP_PASSWORD": "pw"}, path, key)
+    assert b"a@b.com" not in path.read_bytes()
+
+    monkeypatch.setenv("DIGEST_SECRET_KEY", key)
+    monkeypatch.setenv("SMTP_USER", "override@b.com")
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+    assert credentials.load_into_env(path) == ["SMTP_PASSWORD"]
+    assert os.environ["SMTP_PASSWORD"] == "pw"
+    assert os.environ["SMTP_USER"] == "override@b.com"

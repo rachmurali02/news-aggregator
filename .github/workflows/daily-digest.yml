@@ -27,10 +27,10 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Build and send digest
         env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          DIGEST_TO: ${{ secrets.DIGEST_TO }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Decrypts credentials.enc (SMTP login, recipient, API keys).
+          DIGEST_SECRET_KEY: ${{ secrets.DIGEST_SECRET_KEY }}
+          # Optional: a plain secret overrides the encrypted value of the same name.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: python -m digest ${{ inputs.dry_run && '--dry-run' || '' }}
       - name: Upload rendered email
         if: always()

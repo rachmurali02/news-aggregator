@@ -1,4 +1,4 @@
-"""Built-in word-of-the-day list, used when Claude is not configured.
+"""Built-in word-of-the-day list, used when no LLM is configured.
 
 Words are chosen deterministically from the date, so the list cycles without
 repeats for len(WORDS) days.

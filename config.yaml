@@ -13,7 +13,7 @@ digest:
   # Opinion pieces get a boost so columns float above straight news.
   opinion_boost: 1.5
 
-# Free-text description of the reader. When ANTHROPIC_API_KEY is set, Claude
+# Free-text description of the reader. When OPENROUTER_API_KEY is set, the LLM
 # uses this to pick and annotate stories; otherwise keyword scoring is used.
 reader_profile: >
   Curious generalist who enjoys sharp, well-argued opinion columns. Interested in
@@ -50,34 +50,34 @@ sections:
       housing market, interest rate, construction, developer, affordability, realtor,
       commercial real estate, office space, reit]
 
-# RSS sources. `section: auto` means the story is classified by keywords.
+# RSS sources — free-to-read publications only (no paywalls).
+# `section: auto` means the story is classified by keywords.
 # `opinion: true` marks columns/editorials (gets opinion_boost).
 sources:
-  # --- Opinion desks -------------------------------------------------------
-  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml", section: auto, opinion: true}
-  - {name: "The Washington Post", url: "https://feeds.washingtonpost.com/rss/opinions", section: auto, opinion: true}
-  - {name: "The Wall Street Journal", url: "https://feeds.a.dj.com/rss/RSSOpinion.xml", section: auto, opinion: true}
+  # --- Opinion & commentary -----------------------------------------------
   - {name: "The Guardian", url: "https://www.theguardian.com/uk/commentisfree/rss", section: auto, opinion: true}
   - {name: "The Guardian", url: "https://www.theguardian.com/commentisfree/world/rss", section: global_affairs, opinion: true}
-  - {name: "Financial Times", url: "https://www.ft.com/opinion?format=rss", section: auto, opinion: true}
-  - {name: "The Economist", url: "https://www.economist.com/leaders/rss.xml", section: auto, opinion: true}
-  - {name: "The Atlantic", url: "https://www.theatlantic.com/feed/channel/ideas/", section: auto, opinion: true}
-  - {name: "Los Angeles Times", url: "https://www.latimes.com/opinion/rss2.0.xml", section: auto, opinion: true}
-  - {name: "The New Yorker", url: "https://www.newyorker.com/feed/news/daily-comment", section: auto, opinion: true}
+  - {name: "The Independent", url: "https://www.independent.co.uk/voices/rss", section: auto, opinion: true}
+  - {name: "The Conversation", url: "https://theconversation.com/us/articles.atom", section: auto, opinion: true}
+  - {name: "The Conversation", url: "https://theconversation.com/global/articles.atom", section: auto, opinion: true}
+  - {name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml", section: auto}
+  - {name: "Vox", url: "https://www.vox.com/rss/index.xml", section: auto, opinion: true}
 
-  # --- Section desks -------------------------------------------------------
-  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", section: global_affairs}
-  - {name: "The Economist", url: "https://www.economist.com/international/rss.xml", section: global_affairs}
-  - {name: "The Atlantic", url: "https://www.theatlantic.com/feed/channel/international/", section: global_affairs}
-  - {name: "Foreign Affairs", url: "https://www.foreignaffairs.com/rss.xml", section: global_affairs, opinion: true}
+  # --- Global affairs ------------------------------------------------------
+  - {name: "The Guardian", url: "https://www.theguardian.com/world/rss", section: global_affairs}
+  - {name: "BBC News", url: "https://feeds.bbci.co.uk/news/world/rss.xml", section: global_affairs}
+  - {name: "NPR", url: "https://feeds.npr.org/1004/rss.xml", section: global_affairs}
 
-  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml", section: science_tech}
-  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml", section: science_tech}
+  # --- Science & technology ------------------------------------------------
   - {name: "The Guardian", url: "https://www.theguardian.com/technology/rss", section: science_tech}
   - {name: "The Guardian", url: "https://www.theguardian.com/science/rss", section: science_tech}
-  - {name: "The Economist", url: "https://www.economist.com/science-and-technology/rss.xml", section: science_tech}
-  - {name: "The Atlantic", url: "https://www.theatlantic.com/feed/channel/technology/", section: science_tech}
+  - {name: "BBC News", url: "https://feeds.bbci.co.uk/news/technology/rss.xml", section: science_tech}
+  - {name: "BBC News", url: "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", section: science_tech}
+  - {name: "NPR", url: "https://feeds.npr.org/1019/rss.xml", section: science_tech}
+  - {name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", section: science_tech}
+  - {name: "Quanta Magazine", url: "https://www.quantamagazine.org/feed/", section: science_tech}
 
-  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/RealEstate.xml", section: real_estate}
+  # --- Real estate ---------------------------------------------------------
   - {name: "The Guardian", url: "https://www.theguardian.com/money/property/rss", section: real_estate}
-  - {name: "Financial Times", url: "https://www.ft.com/property?format=rss", section: real_estate}
+  - {name: "CNBC", url: "https://www.cnbc.com/id/10000115/device/rss/rss.html", section: real_estate}
+  - {name: "HousingWire", url: "https://www.housingwire.com/feed/", section: real_estate}

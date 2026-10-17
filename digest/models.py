@@ -18,7 +18,7 @@ class Story:
     feed_section: str = "auto"
     section: str | None = None
     score: float = 0.0
-    # Filled by the Claude curator when enabled.
+    # Filled by the LLM curator when enabled.
     takeaway: str = ""
 
     @property
@@ -46,7 +46,7 @@ class Digest:
     intro: str
     sections: list[dict] = field(default_factory=list)  # {key, label, emoji, stories}
     word: WordOfTheDay | None = None
-    curated_by_claude: bool = False
+    curated_by_ai: bool = False
 
     @property
     def story_count(self) -> int:

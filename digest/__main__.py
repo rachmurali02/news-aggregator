@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 import yaml
 
-from . import curate, fetch, rank, render, send, words
+from . import credentials, curate, fetch, rank, render, send, words
 from .models import Digest
 
 log = logging.getLogger("digest")
@@ -28,7 +28,7 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def build_digest(config: dict, stories, now: datetime | None = None, use_claude: bool | None = None) -> Digest:
+def build_digest(config: dict, stories, now: datetime | None = None, use_llm: bool | None = None) -> Digest:
     opts = config["digest"]
     sections_cfg = config["sections"]
     per_section = int(opts.get("stories_per_section", 4))
@@ -44,15 +44,16 @@ def build_digest(config: dict, stories, now: datetime | None = None, use_claude:
     selected = rank.top_by_section(scored, sections_cfg, per_section)
     intro, word, curated = DEFAULT_INTRO, words.word_for(now.date()), False
 
-    if use_claude is None:
-        use_claude = curate.enabled()
-    if use_claude:
-        # Give Claude a wider pool than we'll show so it has real choices.
+    if use_llm is None:
+        use_llm = curate.enabled()
+    if use_llm:
+        # Give the model a wider pool than we'll show so it has real choices.
         candidates = rank.top_by_section(scored, sections_cfg, per_section * 3)
         result = curate.curate(candidates, sections_cfg, config.get("reader_profile", ""), per_section)
         if result:
-            picked, intro, word = result
-            # Keep keyword picks for any section Claude left empty.
+            picked, llm_intro, word = result
+            intro = llm_intro or DEFAULT_INTRO
+            # Keep keyword picks for any section the model left empty.
             selected = {k: picked.get(k) or selected[k] for k in sections_cfg}
             curated = True
 
@@ -65,7 +66,7 @@ def build_digest(config: dict, stories, now: datetime | None = None, use_claude:
             for key, cfg in sections_cfg.items()
         ],
         word=word,
-        curated_by_claude=curated,
+        curated_by_ai=curated,
     )
 
 
@@ -83,6 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
+    loaded = credentials.load_into_env()
+    if loaded:
+        log.info("Loaded encrypted credentials: %s", ", ".join(loaded))
     config = load_config(args.config)
     stories = fetch.fetch_all(config["sources"])
     log.info("Fetched %d stories total", len(stories))
@@ -101,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     (out / "digest.html").write_text(html, encoding="utf-8")
     (out / "digest.txt").write_text(text, encoding="utf-8")
-    log.info("Wrote %s (%d stories, Claude=%s)", out / "digest.html", digest.story_count, digest.curated_by_claude)
+    log.info("Wrote %s (%d stories, AI-curated=%s)", out / "digest.html", digest.story_count, digest.curated_by_ai)
 
     if args.dry_run:
         return 0

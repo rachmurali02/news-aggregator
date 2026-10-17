@@ -105,7 +105,7 @@
         <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:2.5px;text-transform:uppercase;color:#fbbf24;">✦ Word of the day</div>
         <div style="font-family:Georgia,'Times New Roman',serif;font-size:38px;line-height:1.2;font-weight:bold;color:#fefce8;padding-top:10px;">{{ digest.word.word }}</div>
         <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#cbd5e1;padding-top:4px;">
-          <em>{{ digest.word.part_of_speech }}</em> &nbsp;·&nbsp; /{{ digest.word.pronunciation }}/
+          <em>{{ digest.word.part_of_speech }}</em>{% if digest.word.pronunciation %} &nbsp;·&nbsp; /{{ digest.word.pronunciation }}/{% endif %}
         </div>
         <div style="font-family:Georgia,serif;font-size:17px;line-height:1.55;color:#f8fafc;padding-top:14px;">{{ digest.word.definition }}</div>
         <div style="font-family:Georgia,serif;font-style:italic;font-size:15px;line-height:1.55;color:#e2e8f0;padding:12px 0 0 14px;border-left:3px solid #fbbf24;margin-top:14px;">“{{ digest.word.example }}”</div>
@@ -127,7 +127,7 @@
   <!-- Footer -->
   <tr><td class="pad" align="center" style="padding:26px 32px 8px;">
     <div class="muted" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#78716c;">
-      {{ digest.story_count }} stories from {{ digest.source_count }} publications{% if digest.curated_by_claude %} · curated with Claude{% endif %}<br>
+      {{ digest.story_count }} stories from {{ digest.source_count }} publications{% if digest.curated_by_ai %} · AI-curated{% endif %}<br>
       {% if settings_url %}<a href="{{ settings_url }}" style="color:#9a3412;">Tune your sections &amp; sources</a>{% endif %}
     </div>
   </td></tr>
