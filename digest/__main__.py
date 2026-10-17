@@ -49,8 +49,10 @@ def build_digest(
     history = memory["history"]
 
     already_sent = threads.sent_urls(history)
+    blocked = config.get("blocked_domains", [])
+    fresh = [s for s in stories if s.url not in already_sent and not rank.is_blocked(s.url, blocked)]
     scored = rank.score_stories(
-        rank.dedupe([s for s in stories if s.url not in already_sent]),
+        rank.dedupe(fresh),
         sections_cfg,
         opinion_boost=float(opts.get("opinion_boost", 1.5)),
         lookback_hours=int(opts.get("lookback_hours", 36)),

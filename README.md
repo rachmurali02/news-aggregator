@@ -4,8 +4,10 @@ A personal morning newsletter. Every day it collects opinion columns and analysi
 **free-to-read** publications, picks the ones that match your interests, and emails you a
 styled digest with a word of the day. Every headline links to the original article.
 
-**Sources (no paywalls):** The Guardian, The Independent, The Conversation, Al Jazeera, Vox,
-BBC News, NPR, Ars Technica, Quanta Magazine, CNBC and HousingWire.
+**Sources (no paywalls):** The Guardian, The Independent, The Conversation, Al Jazeera, NPR,
+ProPublica, Ars Technica, Quanta Magazine, Rest of World and Calculated Risk. Links to known
+paywalled sites (NYT, WSJ, FT, BBC in the US, Vox and others) are dropped through
+`blocked_domains` in `config.yaml`, even when a free feed links to them.
 
 **Default sections:** 🌍 Global Affairs · 🔬 Science & Technology · 🏡 Real Estate
 

@@ -292,3 +292,17 @@ def test_feedback_emails_read_and_archived(monkeypatch):
     events = prefs.fetch_feedback_emails({"me@example.com"})
     assert events == [("<a@x>", "more", "abcd1234")]  # stranger ignored
     assert deleted == [b"1", b"2"]
+
+
+def test_paywalled_domains_are_dropped():
+    from digest.models import Story
+    assert rank.is_blocked("https://www.vox.com/podcasts/506325/x", ["vox.com"])
+    assert not rank.is_blocked("https://notvox.com/a", ["vox.com"])
+    cfg = config()
+    paywalled = Story(title="AI chips and the semiconductor war", url="https://www.vox.com/tech/ai-chips",
+                      source="Some Aggregator", feed_section="science_tech")
+    digest = app.build_digest(cfg, load_stories() + [paywalled], now=NOW, use_llm=False)
+    assert all("vox.com" not in s.url for s in digest.all_stories)
+    sources = {s["name"] for s in cfg["sources"]}
+    assert not sources & {"Vox", "BBC News", "CNBC", "HousingWire"}
+    assert not any(rank.is_blocked(s["url"], cfg["blocked_domains"]) for s in cfg["sources"])

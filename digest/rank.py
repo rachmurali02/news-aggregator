@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 from .models import Story
 
@@ -17,6 +18,12 @@ def _keyword_patterns(sections: dict) -> dict[str, list[re.Pattern]]:
 def keyword_hits(text: str, patterns: list[re.Pattern]) -> int:
     text = text.lower()
     return sum(1 for p in patterns if p.search(text))
+
+
+def is_blocked(url: str, domains: list[str]) -> bool:
+    """True if the URL's host is, or is a subdomain of, a blocked domain."""
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == d or host.endswith("." + d) for d in domains)
 
 
 def _normalise_title(title: str) -> str:
