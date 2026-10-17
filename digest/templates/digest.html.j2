@@ -247,6 +247,17 @@
     </table>
   </td></tr>
 
+  {% if digest.flagged_feeds %}
+  <!-- Feed health -->
+  <tr><td class="pad" style="padding:18px 32px 0;">
+    <div class="muted" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#78716c;background:#fef3c7;border-radius:10px;padding:12px 16px;">
+      <strong style="color:#92400e;">⚠ Feed check:</strong>
+      {% for f in digest.flagged_feeds %}<a href="{{ f.url }}" style="color:#92400e;">{{ f.name }}</a> (empty {{ f.days }} days){% if not loop.last %}, {% endif %}{% endfor %}.
+      {% if settings_url %}<a href="{{ settings_url }}" style="color:#92400e;">Replace in config.yaml</a>{% else %}Consider replacing in config.yaml.{% endif %}
+    </div>
+  </td></tr>
+  {% endif %}
+
   <!-- Footer -->
   <tr><td class="pad" align="center" style="padding:26px 32px 8px;">
     <div class="muted" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#78716c;">

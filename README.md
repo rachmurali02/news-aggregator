@@ -48,6 +48,11 @@ RSS feeds ──► fetch ──► skip already-sent ──► score (keywords,
   developing-story updates and the word picks. Without it, the email uses keyword ranking.
   The briefing then uses article summaries, and the word comes from a built-in list,
   preferring words that appear in today's articles.
+- **Feed health.** Each run logs how many recent stories every feed returned, and adds a table
+  to the GitHub Actions run summary. A feed that fails, or has no stories from the last
+  `lookback_hours`, for `flag_empty_feeds_after_days` (default 3) days running is flagged
+  three ways: a warning on the Actions run, 🚩 in the summary table, and a short note at the
+  bottom of the email with a link to `config.yaml` so you can replace it.
 - **Personalisation.** Besides feedback, you can edit `config.yaml` directly: section weights,
   keywords, the free-text `reader_profile`, `reader_name` and sources.
 

@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 import yaml
 
-from . import credentials, curate, fetch, prefs, rank, render, send, state, threads, words
+from . import credentials, curate, fetch, health, prefs, rank, render, send, state, threads, words
 from .models import Digest, Story
 
 log = logging.getLogger("digest")
@@ -147,18 +147,33 @@ def main(argv: list[str] | None = None) -> int:
         if applied:
             log.info("Applied %d pieces of feedback", applied)
 
-    stories = fetch.fetch_all(config["sources"])
+    results = fetch.fetch_all(config["sources"])
+    stories = [s for r in results for s in r.stories]
     log.info("Fetched %d stories total", len(stories))
+    statuses, flagged = health.update(
+        memory["feed_health"],
+        results,
+        now,
+        lookback_hours=int(config["digest"].get("lookback_hours", 36)),
+        flag_after_days=int(config["digest"].get("flag_empty_feeds_after_days", 3)),
+    )
+    health.log_report(statuses, flagged)
+    health.write_summary(statuses, flagged)
     if not stories:
         log.error("No stories fetched; check network access and feed URLs")
+        if not args.dry_run:
+            state.save(memory, now)  # keep the empty-feed streaks
         return 1
 
     digest = build_digest(config, stories, now=now, memory=memory)
     if digest.story_count == 0:
         log.error("No stories matched your sections")
+        if not args.dry_run:
+            state.save(memory, now)
         return 1
     # Feedback emails go to the mailbox the next run reads over IMAP.
     digest.feedback_to = os.environ.get("SMTP_USER", "")
+    digest.flagged_feeds = [{"name": f.name, "url": f.url, "days": f.empty_streak} for f in flagged]
 
     html = render.render_html(digest, settings_url=settings_url())
     text = render.render_text(digest)
