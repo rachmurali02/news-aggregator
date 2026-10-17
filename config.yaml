@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------
+# Daily digest configuration. Edit this file to change what you get.
+# ---------------------------------------------------------------------------
+
+digest:
+  title: "The Morning Column"
+  # Recipient is read from the DIGEST_TO env var / GitHub secret when set.
+  recipient: ""
+  timezone: "America/New_York"
+  stories_per_section: 4
+  # Only consider stories published in the last N hours.
+  lookback_hours: 36
+  # Opinion pieces get a boost so columns float above straight news.
+  opinion_boost: 1.5
+
+# Free-text description of the reader. When OPENROUTER_API_KEY is set, the LLM
+# uses this to pick and annotate stories; otherwise keyword scoring is used.
+reader_profile: >
+  Curious generalist who enjoys sharp, well-argued opinion columns. Interested in
+  geopolitics and diplomacy, frontier science and AI, and housing markets and
+  real-estate economics. Prefers analysis over breaking-news churn.
+
+# Sections you care about. `weight` scales the section's scores; `keywords`
+# decide which section a story from a mixed feed (e.g. "Opinion") belongs to.
+# Add, remove, or reorder sections freely — the email follows this order.
+sections:
+  global_affairs:
+    label: "Global Affairs"
+    emoji: "🌍"
+    weight: 1.0
+    keywords: [war, diplomacy, election, nato, china, russia, ukraine, israel, gaza,
+      iran, india, europe, eu, un, united nations, sanctions, treaty, summit,
+      foreign policy, geopolitics, president, prime minister, minister, tariff,
+      trade, migration, refugee, military, ceasefire, democracy, africa, latin america]
+  science_tech:
+    label: "Science & Technology"
+    emoji: "🔬"
+    weight: 1.0
+    keywords: [ai, artificial intelligence, chatbot, openai, anthropic, google, apple,
+      microsoft, meta, nvidia, chip, semiconductor, robot, software, internet,
+      social media, tech, technology, silicon valley, startup, science, scientist,
+      research, climate, space, nasa, physics, biology, medicine, vaccine, gene,
+      quantum, energy, battery, data, privacy, cyber]
+  real_estate:
+    label: "Real Estate"
+    emoji: "🏡"
+    weight: 1.0
+    keywords: [housing, house, home, homes, homeowner, mortgage, rent, renter, rental,
+      landlord, tenant, real estate, property, apartment, condo, zoning, home prices,
+      housing market, interest rate, construction, developer, affordability, realtor,
+      commercial real estate, office space, reit]
+
+# RSS sources — free-to-read publications only (no paywalls).
+# `section: auto` means the story is classified by keywords.
+# `opinion: true` marks columns/editorials (gets opinion_boost).
+sources:
+  # --- Opinion & commentary -----------------------------------------------
+  - {name: "The Guardian", url: "https://www.theguardian.com/uk/commentisfree/rss", section: auto, opinion: true}
+  - {name: "The Guardian", url: "https://www.theguardian.com/commentisfree/world/rss", section: global_affairs, opinion: true}
+  - {name: "The Independent", url: "https://www.independent.co.uk/voices/rss", section: auto, opinion: true}
+  - {name: "The Conversation", url: "https://theconversation.com/us/articles.atom", section: auto, opinion: true}
+  - {name: "The Conversation", url: "https://theconversation.com/global/articles.atom", section: auto, opinion: true}
+  - {name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml", section: auto}
+  - {name: "Vox", url: "https://www.vox.com/rss/index.xml", section: auto, opinion: true}
+
+  # --- Global affairs ------------------------------------------------------
+  - {name: "The Guardian", url: "https://www.theguardian.com/world/rss", section: global_affairs}
+  - {name: "BBC News", url: "https://feeds.bbci.co.uk/news/world/rss.xml", section: global_affairs}
+  - {name: "NPR", url: "https://feeds.npr.org/1004/rss.xml", section: global_affairs}
+
+  # --- Science & technology ------------------------------------------------
+  - {name: "The Guardian", url: "https://www.theguardian.com/technology/rss", section: science_tech}
+  - {name: "The Guardian", url: "https://www.theguardian.com/science/rss", section: science_tech}
+  - {name: "BBC News", url: "https://feeds.bbci.co.uk/news/technology/rss.xml", section: science_tech}
+  - {name: "BBC News", url: "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", section: science_tech}
+  - {name: "NPR", url: "https://feeds.npr.org/1019/rss.xml", section: science_tech}
+  - {name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", section: science_tech}
+  - {name: "Quanta Magazine", url: "https://www.quantamagazine.org/feed/", section: science_tech}
+
+  # --- Real estate ---------------------------------------------------------
+  - {name: "The Guardian", url: "https://www.theguardian.com/money/property/rss", section: real_estate}
+  - {name: "CNBC", url: "https://www.cnbc.com/id/10000115/device/rss/rss.html", section: real_estate}
+  - {name: "HousingWire", url: "https://www.housingwire.com/feed/", section: real_estate}
