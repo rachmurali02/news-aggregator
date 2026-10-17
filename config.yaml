@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------
+# Daily digest configuration. Edit this file to change what you get.
+# ---------------------------------------------------------------------------
+
+digest:
+  title: "The Morning Column"
+  # Recipient is read from the DIGEST_TO env var / GitHub secret when set.
+  recipient: ""
+  timezone: "America/New_York"
+  stories_per_section: 4
+  # Only consider stories published in the last N hours.
+  lookback_hours: 36
+  # Opinion pieces get a boost so columns float above straight news.
+  opinion_boost: 1.5
+
+# Free-text description of the reader. When ANTHROPIC_API_KEY is set, Claude
+# uses this to pick and annotate stories; otherwise keyword scoring is used.
+reader_profile: >
+  Curious generalist who enjoys sharp, well-argued opinion columns. Interested in
+  geopolitics and diplomacy, frontier science and AI, and housing markets and
+  real-estate economics. Prefers analysis over breaking-news churn.
+
+# Sections you care about. `weight` scales the section's scores; `keywords`
+# decide which section a story from a mixed feed (e.g. "Opinion") belongs to.
+# Add, remove, or reorder sections freely — the email follows this order.
+sections:
+  global_affairs:
+    label: "Global Affairs"
+    emoji: "🌍"
+    weight: 1.0
+    keywords: [war, diplomacy, election, nato, china, russia, ukraine, israel, gaza,
+      iran, india, europe, eu, un, united nations, sanctions, treaty, summit,
+      foreign policy, geopolitics, president, prime minister, minister, tariff,
+      trade, migration, refugee, military, ceasefire, democracy, africa, latin america]
+  science_tech:
+    label: "Science & Technology"
+    emoji: "🔬"
+    weight: 1.0
+    keywords: [ai, artificial intelligence, chatbot, openai, anthropic, google, apple,
+      microsoft, meta, nvidia, chip, semiconductor, robot, software, internet,
+      social media, tech, technology, silicon valley, startup, science, scientist,
+      research, climate, space, nasa, physics, biology, medicine, vaccine, gene,
+      quantum, energy, battery, data, privacy, cyber]
+  real_estate:
+    label: "Real Estate"
+    emoji: "🏡"
+    weight: 1.0
+    keywords: [housing, house, home, homes, homeowner, mortgage, rent, renter, rental,
+      landlord, tenant, real estate, property, apartment, condo, zoning, home prices,
+      housing market, interest rate, construction, developer, affordability, realtor,
+      commercial real estate, office space, reit]
+
+# RSS sources. `section: auto` means the story is classified by keywords.
+# `opinion: true` marks columns/editorials (gets opinion_boost).
+sources:
+  # --- Opinion desks -------------------------------------------------------
+  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml", section: auto, opinion: true}
+  - {name: "The Washington Post", url: "https://feeds.washingtonpost.com/rss/opinions", section: auto, opinion: true}
+  - {name: "The Wall Street Journal", url: "https://feeds.a.dj.com/rss/RSSOpinion.xml", section: auto, opinion: true}
+  - {name: "The Guardian", url: "https://www.theguardian.com/uk/commentisfree/rss", section: auto, opinion: true}
+  - {name: "The Guardian", url: "https://www.theguardian.com/commentisfree/world/rss", section: global_affairs, opinion: true}
+  - {name: "Financial Times", url: "https://www.ft.com/opinion?format=rss", section: auto, opinion: true}
+  - {name: "The Economist", url: "https://www.economist.com/leaders/rss.xml", section: auto, opinion: true}
+  - {name: "The Atlantic", url: "https://www.theatlantic.com/feed/channel/ideas/", section: auto, opinion: true}
+  - {name: "Los Angeles Times", url: "https://www.latimes.com/opinion/rss2.0.xml", section: auto, opinion: true}
+  - {name: "The New Yorker", url: "https://www.newyorker.com/feed/news/daily-comment", section: auto, opinion: true}
+
+  # --- Section desks -------------------------------------------------------
+  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", section: global_affairs}
+  - {name: "The Economist", url: "https://www.economist.com/international/rss.xml", section: global_affairs}
+  - {name: "The Atlantic", url: "https://www.theatlantic.com/feed/channel/international/", section: global_affairs}
+  - {name: "Foreign Affairs", url: "https://www.foreignaffairs.com/rss.xml", section: global_affairs, opinion: true}
+
+  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml", section: science_tech}
+  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml", section: science_tech}
+  - {name: "The Guardian", url: "https://www.theguardian.com/technology/rss", section: science_tech}
+  - {name: "The Guardian", url: "https://www.theguardian.com/science/rss", section: science_tech}
+  - {name: "The Economist", url: "https://www.economist.com/science-and-technology/rss.xml", section: science_tech}
+  - {name: "The Atlantic", url: "https://www.theatlantic.com/feed/channel/technology/", section: science_tech}
+
+  - {name: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/RealEstate.xml", section: real_estate}
+  - {name: "The Guardian", url: "https://www.theguardian.com/money/property/rss", section: real_estate}
+  - {name: "Financial Times", url: "https://www.ft.com/property?format=rss", section: real_estate}
